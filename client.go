@@ -22,11 +22,24 @@ type BaseClient struct {
 }
 
 type options struct {
-	transport http.RoundTripper
+	transport  http.RoundTripper
+	middleware TransportMiddleware
 }
 
 // Option for the configure client
 type Option func(*options)
+
+// WithTransportMiddleware add middleware for transport
+func WithTransportMiddleware(mw ...TransportMiddleware) Option {
+	return func(i *options) {
+		if i.middleware != nil {
+			mw = append([]TransportMiddleware{i.middleware}, mw...)
+		}
+		if len(mw) > 0 {
+			i.middleware = chain(mw...)
+		}
+	}
+}
 
 // New create new client
 func New(baseURL string, decoder Decoder, opts ...Option) (client BaseClient, err error) {
@@ -39,14 +52,20 @@ func New(baseURL string, decoder Decoder, opts ...Option) (client BaseClient, er
 		baseURL: u,
 		decoder: decoder,
 	}
-	op := &options{
-		transport: http.DefaultTransport,
-	}
+	op := &options{}
 	for _, opt := range opts {
 		opt(op)
 	}
+	transport := http.DefaultTransport
+	if op.transport == nil {
+		transport = op.transport
+	}
+
+	if op.middleware != nil {
+		transport = NewTransportMiddleware(transport, op.middleware)
+	}
 	cl.client = http.Client{
-		Transport: op.transport,
+		Transport: transport,
 	}
 	return cl, nil
 
