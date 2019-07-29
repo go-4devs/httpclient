@@ -14,4 +14,3 @@ output:
 
 linters:
   enable-all: true
-

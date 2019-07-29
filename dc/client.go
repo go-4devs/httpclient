@@ -1,11 +1,13 @@
 package dc
 
 import (
+	"bytes"
 	"errors"
 	"io"
 	"net/http"
 	"net/url"
 
+	"github.com/go-4devs/httpclient"
 	"github.com/go-4devs/httpclient/transport"
 )
 
@@ -17,6 +19,7 @@ type Client struct {
 	HTTPClient http.Client
 	Decoder    Decoder
 	baseURL    url.URL
+	fetch      *fetch
 }
 
 type options struct {
@@ -70,25 +73,78 @@ func New(baseURL string, decoder Decoder, opts ...Option) (client Client, err er
 }
 
 // Do request and decode response body
-func (cl Client) Do(r *http.Request, v interface{}) (err error) {
-	r.URL, err = cl.baseURL.Parse(r.URL.String())
-	if err != nil {
-		return err
-	}
-	res, err := cl.HTTPClient.Do(r)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		_ = res.Body.Close()
-	}()
-	return cl.decode(res.Body, v)
+func (c Client) Do(r *http.Request, v interface{}) (err error) {
+	return c.Fetch(r).Decode(v)
 }
 
-func (cl *Client) decode(body io.Reader, v interface{}) (err error) {
-	if cl.Decoder == nil {
+type fetch struct {
+	body     io.Reader
+	response *http.Response
+	err      error
+}
+
+func (c *Client) Error() error {
+	if c.fetch.err != nil {
+		return c.fetch.err
+	}
+
+	return nil
+}
+
+func (c *Client) Fetch(r *http.Request) httpclient.Fetch {
+	c.fetch = &fetch{}
+	r.URL, c.fetch.err = c.baseURL.Parse(r.URL.String())
+	if c.fetch.err != nil {
+		return c
+	}
+	res, err := c.HTTPClient.Do(r)
+	if err != nil {
+		c.fetch.err = err
+		return c
+	}
+	var b bytes.Buffer
+	if _, err := io.Copy(&b, c.fetch.response.Body); err != nil {
+		c.fetch.err = err
+	}
+	if b.Len() != 0 {
+		c.fetch.body = &b
+	}
+	_ = res.Body.Close()
+	c.fetch.response = res
+
+	return c
+}
+
+func (c *Client) IsStatus(httpStatus int) bool {
+	if c.fetch != nil {
+		return c.fetch.response.StatusCode == httpStatus
+	}
+
+	return false
+}
+
+func (c *Client) With(h func(r *http.Response, b io.Reader) error) httpclient.Fetch {
+	if c.fetch.err != nil {
+		if err := h(c.fetch.response, c.fetch.body); err != nil {
+			c.fetch.err = err
+		}
+	}
+
+	return c
+}
+
+func (c *Client) Decode(v interface{}) error {
+	if c.fetch.err != nil {
+		return c.fetch.err
+	}
+
+	if c.Decoder == nil {
 		return errors.New("must init decoder")
 	}
 
-	return cl.Decoder(body, v)
+	return c.Decoder(c.fetch.body, c)
+}
+
+func (c *Client) Body() io.Reader {
+	return c.fetch.body
 }
