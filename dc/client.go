@@ -42,6 +42,16 @@ func WithTransportMiddleware(mw ...transport.Middleware) Option {
 	}
 }
 
+// Must create clint or panic
+func Must(baseURL string, decoder Decoder, opts ...Option) Client {
+	cl, err := New(baseURL, decoder, opts...)
+	if err != nil {
+		panic(err)
+	}
+
+	return cl
+}
+
 // New create new HTTPClient
 func New(baseURL string, decoder Decoder, opts ...Option) (client Client, err error) {
 	u, err := url.Parse(baseURL)
