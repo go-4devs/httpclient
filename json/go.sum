@@ -1,2 +1,6 @@
+github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/go-4devs/httpclient v0.0.0-20190729052847-527e15269a9c h1:UQYq5CsaXh8gFI9qIJKzT5MR2wEcPlKX816GJomzkF4=
 github.com/go-4devs/httpclient v0.0.0-20190729052847-527e15269a9c/go.mod h1:L6vTY2gUMmrsXgzOL39ezjre/pczs/kZBpDvVKDIFMU=
+github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
+github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=
+github.com/stretchr/testify v1.3.0/go.mod h1:M5WIy9Dh21IEIfnGCwXGc5bZfKNJtfHm1UVUgZn+9EI=

@@ -5,10 +5,7 @@ import (
 )
 
 // Middleware middleware for http.RoundTripper
-type Middleware func(r *http.Request, next RoundTrip) (*http.Response, error)
-
-// RoundTrip base Round Trip func
-type RoundTrip func(r *http.Request) (*http.Response, error)
+type Middleware func(r *http.Request, next func(r *http.Request) (*http.Response, error)) (*http.Response, error)
 
 // NewMiddleware create middleware for the transport
 func NewMiddleware(init http.RoundTripper, mw Middleware) http.RoundTripper {
@@ -33,9 +30,9 @@ func Chain(handleFunc ...Middleware) Middleware {
 	n := len(handleFunc)
 	if n > 1 {
 		lastI := n - 1
-		return func(r *http.Request, next RoundTrip) (*http.Response, error) {
+		return func(r *http.Request, next func(r *http.Request) (*http.Response, error)) (*http.Response, error) {
 			var (
-				chainHandler RoundTrip
+				chainHandler func(r *http.Request) (*http.Response, error)
 				curI         int
 			)
 			chainHandler = func(currentRequest *http.Request) (*http.Response, error) {
@@ -56,7 +53,7 @@ func Chain(handleFunc ...Middleware) Middleware {
 		return handleFunc[0]
 	}
 
-	return func(r *http.Request, next RoundTrip) (*http.Response, error) {
+	return func(r *http.Request, next func(r *http.Request) (*http.Response, error)) (*http.Response, error) {
 		return next(r)
 	}
 }
