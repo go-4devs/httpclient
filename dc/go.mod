@@ -9,5 +9,6 @@ require (
 
 replace (
 	github.com/go-4devs/httpclient => ../
+	github.com/go-4devs/httpclient/apierror => ../apierror
 	github.com/go-4devs/httpclient/transport => ../transport
 )

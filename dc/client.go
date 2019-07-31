@@ -8,8 +8,11 @@ import (
 	"net/url"
 
 	"github.com/go-4devs/httpclient"
+	"github.com/go-4devs/httpclient/apierrors"
 	"github.com/go-4devs/httpclient/transport"
 )
+
+var _ httpclient.Fetch = &Client{}
 
 // Decoder for decode body
 type Decoder func(r io.Reader, v interface{}) error
@@ -20,11 +23,13 @@ type Client struct {
 	Decoder    Decoder
 	baseURL    url.URL
 	fetch      *fetch
+	with       []func(r *http.Response, b io.Reader) error
 }
 
 type options struct {
 	transport  http.RoundTripper
 	middleware transport.Middleware
+	with       []func(r *http.Response, b io.Reader) error
 }
 
 // Option for the configure HTTPClient
@@ -39,6 +44,29 @@ func WithTransportMiddleware(mw ...transport.Middleware) Option {
 		if len(mw) > 0 {
 			i.middleware = transport.Chain(mw...)
 		}
+	}
+}
+
+// WithFetchMiddleware add middleware for transport
+func WithFetchMiddleware(mw ...func(r *http.Response, b io.Reader) error) Option {
+	return func(i *options) {
+		i.with = append(i.with, mw...)
+	}
+}
+
+// WithErrorMiddleware add middleware for transport
+func WithErrorMiddleware(minStatusCode int, errFactory func() error, decoder Decoder) Option {
+	return func(i *options) {
+		i.with = append(i.with, func(r *http.Response, b io.Reader) (err error) {
+			if r.StatusCode >= minStatusCode {
+				err = errFactory()
+				if derr := decoder(b, err); derr != nil {
+					return derr
+				}
+			}
+
+			return
+		})
 	}
 }
 
@@ -58,11 +86,6 @@ func New(baseURL string, decoder Decoder, opts ...Option) (client Client, err er
 	if err != nil {
 		return client, err
 	}
-
-	cl := Client{
-		baseURL: *u,
-		Decoder: decoder,
-	}
 	op := &options{}
 	for _, opt := range opts {
 		opt(op)
@@ -71,20 +94,36 @@ func New(baseURL string, decoder Decoder, opts ...Option) (client Client, err er
 	if op.transport == nil {
 		tr = op.transport
 	}
-
 	if op.middleware != nil {
 		tr = transport.NewMiddleware(tr, op.middleware)
 	}
-	cl.HTTPClient = http.Client{
-		Transport: tr,
+
+	if len(op.with) == 0 {
+		WithErrorMiddleware(http.StatusBadRequest, apierrors.MessageFactory, decoder)(op)
 	}
+
+	cl := Client{
+		baseURL: *u,
+		Decoder: decoder,
+		HTTPClient: http.Client{
+			Transport: tr,
+		},
+		with: op.with,
+	}
+
 	return cl, nil
 
 }
 
 // Do request and decode response body
-func (c Client) Do(r *http.Request, v interface{}) (err error) {
-	return c.Fetch(r).Decode(v)
+func (c *Client) Do(r *http.Request, v interface{}) error {
+	f := c.Fetch(r)
+	for _, w := range c.with {
+		f.With(w)
+
+	}
+
+	return f.Decode(v)
 }
 
 type fetch struct {
@@ -135,11 +174,11 @@ func (c *Client) IsStatus(httpStatus int) bool {
 
 func (c *Client) With(h func(r *http.Response, b io.Reader) error) httpclient.Fetch {
 	if c.fetch.err != nil {
-		if err := h(c.fetch.response, c.fetch.body); err != nil {
-			c.fetch.err = err
-		}
+		return c
 	}
-
+	if err := h(c.fetch.response, c.fetch.body); err != nil {
+		c.fetch.err = err
+	}
 	return c
 }
 
