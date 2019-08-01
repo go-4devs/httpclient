@@ -10,6 +10,7 @@ import (
 )
 
 // DefaultEncoder marshal data and create new bytes buffer
+// nolint: gochecknoglobals
 var DefaultEncoder request.Encoder = func(v interface{}) (io.Reader, error) {
 	buff, err := json.Marshal(v)
 	if err != nil {
@@ -19,11 +20,11 @@ var DefaultEncoder request.Encoder = func(v interface{}) (io.Reader, error) {
 }
 
 // NewPost create new post request with json encoder for the body
-func NewPost(ctx context.Context, path string) *request.ClientRequest {
-	return request.NewPost(ctx, path, DefaultEncoder)
+func NewPost(ctx context.Context) request.ClientRequest {
+	return request.NewPost(ctx, DefaultEncoder)
 }
 
 // NewGet create new post request with json encoder for the body
-func NewGet(ctx context.Context, path string) *request.ClientRequest {
-	return request.NewGet(ctx, path, DefaultEncoder)
+func NewGet(ctx context.Context) request.ClientRequest {
+	return request.NewGet(ctx, DefaultEncoder)
 }

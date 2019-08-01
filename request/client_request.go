@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -14,10 +15,11 @@ type Encoder func(v interface{}) (io.Reader, error)
 
 // ClientRequest make request by params method query
 type ClientRequest struct {
-	Encoder Encoder
-	Method  string
-	URL     string
-	user    struct {
+	Encoder  Encoder
+	Method   string
+	URL      string
+	pathArgs []interface{}
+	user     struct {
 		username, password string
 	}
 	query  url.Values
@@ -28,27 +30,33 @@ type ClientRequest struct {
 }
 
 // NewPost create new post request
-func NewPost(ctx context.Context, path string, encoder Encoder) *ClientRequest {
-	return NewRequest(ctx, path, http.MethodPost, encoder)
+func NewPost(ctx context.Context, encoder Encoder) ClientRequest {
+	return NewRequest(ctx, http.MethodPost, encoder)
 }
 
 // NewGet create new get request
-func NewGet(ctx context.Context, path string, encoder Encoder) *ClientRequest {
-	return NewRequest(ctx, path, http.MethodGet, encoder)
+func NewGet(ctx context.Context, encoder Encoder) ClientRequest {
+	return NewRequest(ctx, http.MethodGet, encoder)
 }
 
 // NewRequest create new request
-func NewRequest(ctx context.Context, path, method string, encoder Encoder) *ClientRequest {
-	return &ClientRequest{
+func NewRequest(ctx context.Context, method string, encoder Encoder) ClientRequest {
+	return ClientRequest{
 		ctx:     ctx,
-		URL:     path,
 		Encoder: encoder,
 		Method:  method,
 	}
 }
 
+// Path set url and args it
+func (r ClientRequest) Path(path string, a ...interface{}) ClientRequest {
+	r.URL = path
+	r.pathArgs = a
+	return r
+}
+
 // Query add values for the query
-func (r *ClientRequest) Query(value ...RValue) *ClientRequest {
+func (r ClientRequest) Query(value ...RValue) ClientRequest {
 	if r.query == nil {
 		r.query = url.Values{}
 	}
@@ -59,7 +67,7 @@ func (r *ClientRequest) Query(value ...RValue) *ClientRequest {
 }
 
 // Header add values for the header
-func (r *ClientRequest) Header(value ...RValue) *ClientRequest {
+func (r ClientRequest) Header(value ...RValue) ClientRequest {
 	if r.header == nil {
 		r.header = url.Values{}
 	}
@@ -70,14 +78,14 @@ func (r *ClientRequest) Header(value ...RValue) *ClientRequest {
 }
 
 // SetBasicAuth set username and password basic auth
-func (r *ClientRequest) SetBasicAuth(username, password string) *ClientRequest {
+func (r ClientRequest) SetBasicAuth(username, password string) ClientRequest {
 	r.user.username = username
 	r.user.password = password
 	return r
 }
 
 // SetBody encode body and add to request
-func (r *ClientRequest) SetBody(data interface{}) *ClientRequest {
+func (r ClientRequest) SetBody(data interface{}) ClientRequest {
 	if r.err != nil {
 		return r
 	}
@@ -107,7 +115,7 @@ func encoder(v interface{}) (io.Reader, error) {
 }
 
 // HTTP create http Request
-func (r *ClientRequest) HTTP() (*http.Request, error) {
+func (r ClientRequest) HTTP() (*http.Request, error) {
 	if r.err != nil {
 		return nil, r.err
 	}
@@ -127,12 +135,16 @@ func (r *ClientRequest) HTTP() (*http.Request, error) {
 	return httpRequest, nil
 }
 
-func (r *ClientRequest) path() string {
+func (r ClientRequest) path() string {
+	u := r.URL
+	if len(r.pathArgs) > 0 {
+		u = fmt.Sprintf(r.URL, r.pathArgs...)
+	}
 
 	values := r.query.Encode()
 	if values == "" {
-		return r.URL
+		return u
 	}
 
-	return r.URL + "?" + values
+	return u + "?" + values
 }

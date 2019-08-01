@@ -2,8 +2,10 @@ package request
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"testing"
 	"time"
@@ -11,17 +13,55 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func clientEncoder(v interface{}) (reader io.Reader, e error) {
+	return nil, nil
+}
+
+func ExampleClientRequest_Query() {
+	ctx := context.TODO()
+	req, err := NewRequest(ctx, http.MethodGet, clientEncoder).
+		Query(
+			StringValue("q", "search"),
+			Int64Value("id", 2),
+			TimeValue("ts", time.Now(), time.RFC3339Nano),
+		).
+		HTTP()
+	if err != nil {
+		log.Fatal(err)
+	}
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer res.Body.Close()
+	fmt.Println(res.Body)
+
+}
+
+func ExampleClientRequest_Path() {
+	ctx := context.TODO()
+	req, err := NewRequest(ctx, http.MethodGet, clientEncoder).Path("/users/%d", 1).HTTP()
+	if err != nil {
+		log.Fatal(err)
+	}
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer res.Body.Close()
+	fmt.Println(res.Body)
+}
+
 func TestClientRequest_Query(t *testing.T) {
 	r := ClientRequest{}
-	r.Query(
+	h, err := r.Query(
 		StringValue("key", "value"),
 		StringValue("key2", "value2"),
 		StringValue("key3", " строка"),
 		TimeValue("time", requireTime(t, "2019-07-30T08:08:48+03:00"), time.RFC3339),
 		Int64Value("key2", 456),
-	)
+	).HTTP()
 
-	h, err := r.HTTP()
 	require.Nil(t, err)
 	require.Equal(t, "?key=value"+
 		"&key2=value2&key2=456"+
@@ -30,25 +70,22 @@ func TestClientRequest_Query(t *testing.T) {
 
 func TestClientRequest_SetBasicAuth(t *testing.T) {
 	r := ClientRequest{}
-	r.SetBasicAuth("username", "password")
-	h, e := r.HTTP()
+	h, e := r.SetBasicAuth("username", "password").HTTP()
 	require.Nil(t, e)
 	require.Equal(t, "Basic dXNlcm5hbWU6cGFzc3dvcmQ=", h.Header.Get("Authorization"))
 
-	r.SetBasicAuth("username2", "")
-	h, e = r.HTTP()
+	h, e = r.SetBasicAuth("username2", "").HTTP()
 	require.Nil(t, e)
 	require.Equal(t, "Basic dXNlcm5hbWUyOg==", h.Header.Get("Authorization"))
 }
 
 func TestClientRequest_Header(t *testing.T) {
 	r := ClientRequest{}
-	r.Header(
+	h, e := r.Header(
 		StringValue("key", "value"),
 		Int64Value("key2int", 123),
 		TimeValue("key3time", requireTime(t, "2019-07-30T08:08:48+03:00"), time.RFC3339),
-	)
-	h, e := r.HTTP()
+	).HTTP()
 	require.Nil(t, e)
 	require.Equal(t, "value", h.Header.Get("key"))
 	require.Equal(t, "123", h.Header.Get("key2int"))
@@ -64,9 +101,7 @@ func TestClientRequest_HTTP_InvalidMethod(t *testing.T) {
 
 func TestClientRequest_SetBody(t *testing.T) {
 	r := ClientRequest{}
-	r.SetBody("some data in body")
-
-	h, e := r.HTTP()
+	h, e := r.SetBody("some data in body").HTTP()
 	require.Nil(t, e)
 	b, e := ioutil.ReadAll(h.Body)
 	require.Nil(t, e)
@@ -75,9 +110,10 @@ func TestClientRequest_SetBody(t *testing.T) {
 
 func TestNewRequest(t *testing.T) {
 	ctx := context.Background()
-	r, e := NewRequest(ctx, "/path/to/the/page", http.MethodDelete, func(v interface{}) (reader io.Reader, e error) {
+	r, e := NewRequest(ctx, http.MethodDelete, func(v interface{}) (reader io.Reader, e error) {
 		return nil, nil
 	}).
+		Path("/path/to/the/page").
 		Header(StringValue("x-header", "data")).
 		Query(Int64Value("id", 42)).
 		SetBody([]byte(`some data`)).
@@ -89,6 +125,25 @@ func TestNewRequest(t *testing.T) {
 	ex.Header.Add("x-header", "data")
 
 	require.Equal(t, ex, r)
+}
+
+func BenchmarkNewRequest(b *testing.B) {
+	ctx := context.Background()
+
+	for i := 0; i < b.N; i++ {
+		_, e := NewRequest(ctx, http.MethodDelete, func(v interface{}) (io.Reader, error) {
+			return nil, nil
+		}).
+			Path("/path/to/the/page").
+			Header(StringValue("x-header", "data")).
+			Query(Int64Value("id", 42)).
+			SetBody([]byte(`some data`)).
+			HTTP()
+
+		if e != nil {
+			b.Fatalf("Unexpected error: %s", e)
+		}
+	}
 }
 
 func requireTime(t *testing.T, value string) time.Time {
