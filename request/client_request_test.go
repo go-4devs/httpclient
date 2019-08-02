@@ -63,6 +63,7 @@ func TestClientRequest_Query(t *testing.T) {
 	).HTTP()
 
 	require.Nil(t, err)
+	require.NotNil(t, h)
 	require.Equal(t, "?key=value"+
 		"&key2=value2&key2=456"+
 		"&key3=+%D1%81%D1%82%D1%80%D0%BE%D0%BA%D0%B0&time=2019-07-30T08%3A08%3A48%2B03%3A00", h.URL.String())
@@ -136,7 +137,10 @@ func BenchmarkNewRequest(b *testing.B) {
 		}).
 			Path("/path/to/the/page").
 			Header(StringValue("x-header", "data")).
-			Query(Int64Value("id", 42)).
+			Query(
+				Int64Value("id", 42),
+				StringValue("id", "42"),
+			).
 			SetBody([]byte(`some data`)).
 			HTTP()
 

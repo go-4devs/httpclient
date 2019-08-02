@@ -9,9 +9,9 @@ import (
 	"github.com/go-4devs/httpclient/request"
 )
 
-// DefaultEncoder marshal data and create new bytes buffer
+// defaultEncoder marshal data and create new bytes buffer
 // nolint: gochecknoglobals
-var DefaultEncoder request.Encoder = func(v interface{}) (io.Reader, error) {
+var defaultEncoder request.Encoder = func(v interface{}) (io.Reader, error) {
 	buff, err := json.Marshal(v)
 	if err != nil {
 		return nil, err
@@ -21,10 +21,10 @@ var DefaultEncoder request.Encoder = func(v interface{}) (io.Reader, error) {
 
 // NewPost create new post request with json encoder for the body
 func NewPost(ctx context.Context) request.ClientRequest {
-	return request.NewPost(ctx, DefaultEncoder).Header(request.StringValue("Accept", "application/json"))
+	return request.NewPost(ctx, defaultEncoder).Header(request.StringValue("Accept", "application/json"))
 }
 
 // NewGet create new post request with json encoder for the body
 func NewGet(ctx context.Context) request.ClientRequest {
-	return request.NewGet(ctx, DefaultEncoder).Header(request.StringValue("Accept", "application/json"))
+	return request.NewGet(ctx, defaultEncoder).Header(request.StringValue("Accept", "application/json"))
 }

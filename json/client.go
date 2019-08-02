@@ -8,20 +8,18 @@ import (
 	"github.com/go-4devs/httpclient/decoder"
 )
 
-// DefaultDecoder default json decoder
-var DefaultDecoder dc.Decoder = func(r io.Reader, v interface{}) error {
+// defaultDecoder default json decoder
+var defaultDecoder decoder.Decoder = func(r io.Reader, v interface{}) error {
 	return json.NewDecoder(r).Decode(v)
 }
 
 // RegisterDecoder by application/json with aliases content type
 func RegisterDecoder(aliases ...string) {
-	decoder.MustRegister(func(r io.Reader, v interface{}) error {
-		return json.NewDecoder(r).Decode(v)
-	}, append(aliases, "application/json")...)
+	decoder.MustRegister(defaultDecoder, append(aliases, "application/json")...)
 }
 
 // NewClient create client with json decoder
 func NewClient(baseURL string, opts ...dc.Option) (dc.Client, error) {
-	opts = append(opts, ds.WithDecoder(DefaultDecoder))
+	opts = append(opts, dc.WithDecoder(defaultDecoder))
 	return dc.New(baseURL, opts...)
 }

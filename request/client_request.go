@@ -23,7 +23,7 @@ type ClientRequest struct {
 		username, password string
 	}
 	query  url.Values
-	header url.Values
+	header http.Header
 	err    error
 	body   io.Reader
 	ctx    context.Context
@@ -58,7 +58,7 @@ func (r ClientRequest) Path(path string, a ...interface{}) ClientRequest {
 // Query add values for the query
 func (r ClientRequest) Query(value ...RValue) ClientRequest {
 	if r.query == nil {
-		r.query = url.Values{}
+		r.query = make(url.Values, len(value))
 	}
 	for _, v := range value {
 		v(r.query)
@@ -69,7 +69,7 @@ func (r ClientRequest) Query(value ...RValue) ClientRequest {
 // Header add values for the header
 func (r ClientRequest) Header(value ...RValue) ClientRequest {
 	if r.header == nil {
-		r.header = url.Values{}
+		r.header = make(http.Header, len(value))
 	}
 	for _, v := range value {
 		v(r.header)
@@ -128,8 +128,8 @@ func (r ClientRequest) HTTP() (*http.Request, error) {
 		httpRequest.SetBasicAuth(r.user.username, r.user.password)
 	}
 
-	for n := range r.header {
-		httpRequest.Header.Add(n, r.header.Get(n))
+	if r.header != nil {
+		httpRequest.Header = r.header
 	}
 
 	return httpRequest, nil
@@ -141,10 +141,9 @@ func (r ClientRequest) path() string {
 		u = fmt.Sprintf(r.URL, r.pathArgs...)
 	}
 
-	values := r.query.Encode()
-	if values == "" {
-		return u
+	if len(r.query) > 0 {
+		return u + "?" + r.query.Encode()
 	}
 
-	return u + "?" + values
+	return u
 }

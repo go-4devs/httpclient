@@ -1,0 +1,4 @@
+github.com/go-4devs/httpclient v0.0.0-20190729052847-527e15269a9c h1:UQYq5CsaXh8gFI9qIJKzT5MR2wEcPlKX816GJomzkF4=
+github.com/go-4devs/httpclient v0.0.0-20190729052847-527e15269a9c/go.mod h1:L6vTY2gUMmrsXgzOL39ezjre/pczs/kZBpDvVKDIFMU=
+github.com/go-4devs/httpclient/apierrors v0.0.0-20190801080035-86bc08daf4fd h1:5CS1einpnvdlluZytyLZvFoJwxBDXaaE+FQuFST4Nf0=
+github.com/go-4devs/httpclient/apierrors v0.0.0-20190801080035-86bc08daf4fd/go.mod h1:6eCrUnGMgDI/9/ltz8ZUJPVG7JTl3zT75iHbIdumJiw=
