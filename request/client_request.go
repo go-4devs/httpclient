@@ -29,23 +29,44 @@ type ClientRequest struct {
 	ctx    context.Context
 }
 
+// Option configure client request
+type Option func(*ClientRequest)
+
+// WithEncoder set encoder request
+func WithEncoder(encoder Encoder) Option {
+	return func(request *ClientRequest) {
+		request.Encoder = encoder
+	}
+}
+
+// WithMethod set method by default GET
+func WithMethod(method string) Option {
+	return func(request *ClientRequest) {
+		request.Method = method
+	}
+}
+
 // NewPost create new post request
-func NewPost(ctx context.Context, encoder Encoder) ClientRequest {
-	return NewRequest(ctx, http.MethodPost, encoder)
+func NewPost(ctx context.Context, opts ...Option) ClientRequest {
+	return NewRequest(ctx, append(opts, WithMethod(http.MethodPost))...)
 }
 
 // NewGet create new get request
-func NewGet(ctx context.Context, encoder Encoder) ClientRequest {
-	return NewRequest(ctx, http.MethodGet, encoder)
+func NewGet(ctx context.Context, opts ...Option) ClientRequest {
+	return NewRequest(ctx, opts...)
 }
 
 // NewRequest create new request
-func NewRequest(ctx context.Context, method string, encoder Encoder) ClientRequest {
-	return ClientRequest{
-		ctx:     ctx,
-		Encoder: encoder,
-		Method:  method,
+func NewRequest(ctx context.Context, opts ...Option) ClientRequest {
+	cl := ClientRequest{
+		ctx:    ctx,
+		Method: http.MethodGet,
 	}
+	for _, o := range opts {
+		o(&cl)
+	}
+
+	return cl
 }
 
 // Path set url and args it
