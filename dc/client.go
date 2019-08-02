@@ -2,25 +2,22 @@ package dc
 
 import (
 	"bytes"
-	"errors"
 	"io"
 	"net/http"
 	"net/url"
 
 	"github.com/go-4devs/httpclient"
 	"github.com/go-4devs/httpclient/apierrors"
+	"github.com/go-4devs/httpclient/decoder"
 	"github.com/go-4devs/httpclient/transport"
 )
 
 var _ httpclient.Fetch = &Client{}
 
-// Decoder for decode body
-type Decoder func(r io.Reader, v interface{}) error
-
 // HTTPClient get response and marshaling it by decoder
 type Client struct {
 	HTTPClient http.Client
-	Decoder    Decoder
+	decoder    decoder.Decoder
 	baseURL    url.URL
 	fetch      *fetch
 	with       []func(r *http.Response, b io.Reader) error
@@ -29,6 +26,7 @@ type Client struct {
 type options struct {
 	transport  http.RoundTripper
 	middleware transport.Middleware
+	decoder    decoder.Decoder
 	with       []func(r *http.Response, b io.Reader) error
 }
 
@@ -55,12 +53,15 @@ func WithFetchMiddleware(mw ...func(r *http.Response, b io.Reader) error) Option
 }
 
 // WithErrorMiddleware add middleware for transport
-func WithErrorMiddleware(minStatusCode int, errFactory func() error, decoder Decoder) Option {
+func WithErrorMiddleware(minStatusCode int, errFactory func() error) Option {
 	return func(i *options) {
 		i.with = append(i.with, func(r *http.Response, b io.Reader) (err error) {
 			if r.StatusCode >= minStatusCode {
 				err = errFactory()
-				if derr := decoder(b, err); derr != nil {
+				if i.decoder == nil {
+					return decoder.HTTPDecode(r, b, err)
+				}
+				if derr := i.decoder(b, err); derr != nil {
 					return derr
 				}
 			}
@@ -70,9 +71,16 @@ func WithErrorMiddleware(minStatusCode int, errFactory func() error, decoder Dec
 	}
 }
 
+// WithDecoder set decoder body
+func WithDecoder(decoder decoder.Decoder) Option {
+	return func(i *options) {
+		i.decoder = decoder
+	}
+}
+
 // Must create clint or panic
-func Must(baseURL string, decoder Decoder, opts ...Option) Client {
-	cl, err := New(baseURL, decoder, opts...)
+func Must(baseURL string, opts ...Option) Client {
+	cl, err := New(baseURL, opts...)
 	if err != nil {
 		panic(err)
 	}
@@ -81,7 +89,7 @@ func Must(baseURL string, decoder Decoder, opts ...Option) Client {
 }
 
 // New create new HTTPClient
-func New(baseURL string, decoder Decoder, opts ...Option) (client Client, err error) {
+func New(baseURL string, opts ...Option) (client Client, err error) {
 	u, err := url.Parse(baseURL)
 	if err != nil {
 		return client, err
@@ -99,12 +107,12 @@ func New(baseURL string, decoder Decoder, opts ...Option) (client Client, err er
 	}
 
 	if len(op.with) == 0 {
-		WithErrorMiddleware(http.StatusBadRequest, apierrors.MessageFactory, decoder)(op)
+		WithErrorMiddleware(http.StatusBadRequest, apierrors.MessageFactory)(op)
 	}
 
 	cl := Client{
 		baseURL: *u,
-		Decoder: decoder,
+		decoder: op.decoder,
 		HTTPClient: http.Client{
 			Transport: tr,
 		},
@@ -186,14 +194,16 @@ func (c *Client) Decode(v interface{}) error {
 	if c.fetch.err != nil {
 		return c.fetch.err
 	}
-
-	if c.Decoder == nil {
-		return errors.New("must init decoder")
-	}
-
-	return c.Decoder(c.fetch.body, c)
+	return c.decode(v)
 }
 
 func (c *Client) Body() io.Reader {
 	return c.fetch.body
+}
+
+func (c *Client) decode(v interface{}) error {
+	if c.decoder != nil {
+		return c.decoder(c.fetch.body, v)
+	}
+	return decoder.HTTPDecode(c.fetch.response, c.fetch.body, v)
 }

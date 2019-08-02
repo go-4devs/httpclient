@@ -21,10 +21,10 @@ var DefaultEncoder request.Encoder = func(v interface{}) (io.Reader, error) {
 
 // NewPost create new post request with json encoder for the body
 func NewPost(ctx context.Context) request.ClientRequest {
-	return request.NewPost(ctx, DefaultEncoder)
+	return request.NewPost(ctx, DefaultEncoder).Header(request.StringValue("Accept", "application/json"))
 }
 
 // NewGet create new post request with json encoder for the body
 func NewGet(ctx context.Context) request.ClientRequest {
-	return request.NewGet(ctx, DefaultEncoder)
+	return request.NewGet(ctx, DefaultEncoder).Header(request.StringValue("Accept", "application/json"))
 }
