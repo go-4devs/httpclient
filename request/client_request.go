@@ -17,16 +17,13 @@ type Encoder func(v interface{}) (io.Reader, error)
 type ClientRequest struct {
 	Encoder  Encoder
 	Method   string
-	URL      string
-	pathArgs []interface{}
-	user     struct {
-		username, password string
-	}
-	query  url.Values
-	header http.Header
-	err    error
-	body   io.Reader
-	ctx    context.Context
+	Path     string
+	PathArgs []interface{}
+	query    url.Values
+	err      error
+	body     io.Reader
+	ctx      context.Context
+	mw       func(ctx context.Context, cr *ClientRequest, n func(ctx context.Context) (*http.Request, error)) (*http.Request, error)
 }
 
 // Option configure client request
@@ -36,6 +33,16 @@ type Option func(*ClientRequest)
 func WithEncoder(encoder Encoder) Option {
 	return func(request *ClientRequest) {
 		request.Encoder = encoder
+	}
+}
+
+// WithMiddleware set middleware request
+func WithMiddleware(mw ...func(ctx context.Context, cr *ClientRequest, n func(ctx context.Context) (*http.Request, error)) (*http.Request, error)) Option {
+	return func(request *ClientRequest) {
+		if request.mw != nil {
+			mw = append(mw, request.mw)
+		}
+		request.mw = chain(mw...)
 	}
 }
 
@@ -69,10 +76,10 @@ func NewRequest(ctx context.Context, opts ...Option) ClientRequest {
 	return cl
 }
 
-// Path set url and args it
-func (r ClientRequest) Path(path string, a ...interface{}) ClientRequest {
-	r.URL = path
-	r.pathArgs = a
+// URI set url and args it
+func (r ClientRequest) URI(path string, a ...interface{}) ClientRequest {
+	r.Path = path
+	r.PathArgs = a
 	return r
 }
 
@@ -89,20 +96,26 @@ func (r ClientRequest) Query(value ...RValue) ClientRequest {
 
 // Header add values for the header
 func (r ClientRequest) Header(value ...RValue) ClientRequest {
-	if r.header == nil {
-		r.header = make(http.Header, len(value))
-	}
-	for _, v := range value {
-		v(r.header)
-	}
-	return r
+	return r.handle(func(ctx context.Context, _ *ClientRequest, n func(ctx context.Context) (*http.Request, error)) (*http.Request, error) {
+		r, err := n(ctx)
+		if err == nil {
+			for _, v := range value {
+				v(r.Header)
+			}
+		}
+		return r, err
+	})
 }
 
 // SetBasicAuth set username and password basic auth
 func (r ClientRequest) SetBasicAuth(username, password string) ClientRequest {
-	r.user.username = username
-	r.user.password = password
-	return r
+	return r.handle(func(ctx context.Context, _ *ClientRequest, n func(context.Context) (*http.Request, error)) (request *http.Request, e error) {
+		request, e = n(ctx)
+		if e == nil {
+			request.SetBasicAuth(username, password)
+		}
+		return
+	})
 }
 
 // SetBody encode body and add to request
@@ -136,30 +149,39 @@ func encoder(v interface{}) (io.Reader, error) {
 }
 
 // HTTP create http Request
-func (r ClientRequest) HTTP() (*http.Request, error) {
+func (r ClientRequest) HTTP() (httpRequest *http.Request, err error) {
 	if r.err != nil {
 		return nil, r.err
 	}
-	httpRequest, err := http.NewRequest(r.Method, r.path(), r.body)
+	if r.ctx == nil {
+		r.ctx = context.Background()
+	}
+	if r.mw != nil {
+		httpRequest, err = r.mw(r.ctx, &r, r.init)
+	} else {
+		httpRequest, err = r.init(r.ctx)
+	}
+
 	if err != nil {
 		return nil, err
-	}
-
-	if r.user.username != "" {
-		httpRequest.SetBasicAuth(r.user.username, r.user.password)
-	}
-
-	if r.header != nil {
-		httpRequest.Header = r.header
 	}
 
 	return httpRequest, nil
 }
 
+func (r ClientRequest) init(ctx context.Context) (request *http.Request, e error) {
+	request, e = http.NewRequest(r.Method, r.path(), r.body)
+	if e == nil {
+		request = request.WithContext(ctx)
+	}
+
+	return request, e
+}
+
 func (r ClientRequest) path() string {
-	u := r.URL
-	if len(r.pathArgs) > 0 {
-		u = fmt.Sprintf(r.URL, r.pathArgs...)
+	u := r.Path
+	if len(r.PathArgs) > 0 {
+		u = fmt.Sprintf(r.Path, r.PathArgs...)
 	}
 
 	if len(r.query) > 0 {
@@ -167,4 +189,48 @@ func (r ClientRequest) path() string {
 	}
 
 	return u
+}
+
+func (r ClientRequest) handle(h func(context.Context, *ClientRequest, func(context.Context) (*http.Request, error)) (*http.Request, error)) ClientRequest {
+	if r.mw == nil {
+		r.mw = h
+	} else {
+		r.mw = chain(r.mw, h)
+	}
+	return r
+}
+
+// chain middleware
+func chain(handleFunc ...func(ctx context.Context, cr *ClientRequest,
+	n func(ctx context.Context) (*http.Request, error)) (*http.Request, error),
+) func(ctx context.Context, cr *ClientRequest, n func(ctx context.Context) (*http.Request, error)) (*http.Request, error) {
+	n := len(handleFunc)
+	if n > 1 {
+		lastI := n - 1
+		return func(ctx context.Context, cr *ClientRequest, n func(context.Context) (*http.Request, error)) (*http.Request, error) {
+			var (
+				chainHandler func(context.Context) (*http.Request, error)
+				curI         int
+			)
+			chainHandler = func(currentCtx context.Context) (*http.Request, error) {
+				if curI == lastI {
+					return n(currentCtx)
+				}
+				curI++
+				res, err := handleFunc[curI](currentCtx, cr, chainHandler)
+				curI--
+				return res, err
+
+			}
+			return handleFunc[0](ctx, cr, chainHandler)
+		}
+	}
+
+	if n == 1 {
+		return handleFunc[0]
+	}
+
+	return func(ctx context.Context, cr *ClientRequest, n func(context.Context) (*http.Request, error)) (*http.Request, error) {
+		return n(ctx)
+	}
 }

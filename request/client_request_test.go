@@ -40,7 +40,7 @@ func ExampleClientRequest_Query() {
 
 func ExampleClientRequest_Path() {
 	ctx := context.TODO()
-	req, err := NewRequest(ctx, WithEncoder(clientEncoder)).Path("/users/%d", 1).HTTP()
+	req, err := NewRequest(ctx, WithEncoder(clientEncoder)).URI("/users/%d", 1).HTTP()
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -111,10 +111,10 @@ func TestClientRequest_SetBody(t *testing.T) {
 
 func TestNewRequest(t *testing.T) {
 	ctx := context.Background()
-	r, e := NewRequest(ctx, WithEncoder(func(v interface{}) (reader io.Reader, e error) {
+	r, e := NewRequest(ctx, WithEncoder(func(v interface{}) (io.Reader, error) {
 		return nil, nil
 	}), WithMethod(http.MethodDelete)).
-		Path("/path/to/the/page").
+		URI("/path/to/the/page").
 		Header(StringValue("x-header", "data")).
 		Query(Int64Value("id", 42)).
 		SetBody([]byte(`some data`)).
@@ -125,7 +125,7 @@ func TestNewRequest(t *testing.T) {
 	require.Nil(t, e)
 	ex.Header.Add("x-header", "data")
 
-	require.Equal(t, ex, r)
+	require.Equal(t, ex.WithContext(ctx), r)
 }
 
 func BenchmarkNewRequest(b *testing.B) {
@@ -135,7 +135,7 @@ func BenchmarkNewRequest(b *testing.B) {
 		_, e := NewRequest(ctx, WithEncoder(func(v interface{}) (reader io.Reader, e error) {
 			return nil, nil
 		}), WithMethod(http.MethodDelete)).
-			Path("/path/to/the/page").
+			URI("/path/to/the/page").
 			Header(StringValue("x-header", "data")).
 			Query(
 				Int64Value("id", 42),
