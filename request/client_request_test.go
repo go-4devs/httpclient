@@ -19,7 +19,7 @@ func clientEncoder(v interface{}) (reader io.Reader, e error) {
 
 func ExampleClientRequest_Query() {
 	ctx := context.TODO()
-	req, err := NewRequest(ctx, http.MethodGet, clientEncoder).
+	req, err := NewRequest(ctx, WithEncoder(clientEncoder)).
 		Query(
 			StringValue("q", "search"),
 			Int64Value("id", 2),
@@ -40,7 +40,7 @@ func ExampleClientRequest_Query() {
 
 func ExampleClientRequest_Path() {
 	ctx := context.TODO()
-	req, err := NewRequest(ctx, http.MethodGet, clientEncoder).Path("/users/%d", 1).HTTP()
+	req, err := NewRequest(ctx, WithEncoder(clientEncoder)).Path("/users/%d", 1).HTTP()
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -111,9 +111,9 @@ func TestClientRequest_SetBody(t *testing.T) {
 
 func TestNewRequest(t *testing.T) {
 	ctx := context.Background()
-	r, e := NewRequest(ctx, http.MethodDelete, func(v interface{}) (reader io.Reader, e error) {
+	r, e := NewRequest(ctx, WithEncoder(func(v interface{}) (reader io.Reader, e error) {
 		return nil, nil
-	}).
+	}), WithMethod(http.MethodDelete)).
 		Path("/path/to/the/page").
 		Header(StringValue("x-header", "data")).
 		Query(Int64Value("id", 42)).
@@ -132,9 +132,9 @@ func BenchmarkNewRequest(b *testing.B) {
 	ctx := context.Background()
 
 	for i := 0; i < b.N; i++ {
-		_, e := NewRequest(ctx, http.MethodDelete, func(v interface{}) (io.Reader, error) {
+		_, e := NewRequest(ctx, WithEncoder(func(v interface{}) (reader io.Reader, e error) {
 			return nil, nil
-		}).
+		}), WithMethod(http.MethodDelete)).
 			Path("/path/to/the/page").
 			Header(StringValue("x-header", "data")).
 			Query(
