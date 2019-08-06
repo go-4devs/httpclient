@@ -20,14 +20,14 @@ type Client struct {
 	decoder    decoder.Decoder
 	baseURL    url.URL
 	fetch      *fetch
-	with       []func(r *http.Response, b io.Reader) error
+	with       []func(*http.Response, io.Reader) error
 }
 
 type options struct {
 	transport  http.RoundTripper
 	middleware transport.Middleware
 	decoder    decoder.Decoder
-	with       []func(r *http.Response, b io.Reader) error
+	with       []func(*http.Response, io.Reader) error
 }
 
 // Option for the configure HTTPClient
@@ -46,7 +46,7 @@ func WithTransportMiddleware(mw ...transport.Middleware) Option {
 }
 
 // WithFetchMiddleware add middleware for transport
-func WithFetchMiddleware(mw ...func(r *http.Response, b io.Reader) error) Option {
+func WithFetchMiddleware(mw ...func(*http.Response, io.Reader) error) Option {
 	return func(i *options) {
 		i.with = append(i.with, mw...)
 	}

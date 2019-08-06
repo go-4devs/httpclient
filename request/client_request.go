@@ -23,7 +23,8 @@ type ClientRequest struct {
 	err      error
 	body     io.Reader
 	ctx      context.Context
-	mw       func(ctx context.Context, cr *ClientRequest, n func(ctx context.Context) (*http.Request, error)) (*http.Request, error)
+	mw       func(ctx context.Context, cr *ClientRequest,
+		n func(ctx context.Context) (*http.Request, error)) (*http.Request, error)
 }
 
 // Option configure client request
@@ -37,7 +38,8 @@ func WithEncoder(encoder Encoder) Option {
 }
 
 // WithMiddleware set middleware request
-func WithMiddleware(mw ...func(ctx context.Context, cr *ClientRequest, n func(ctx context.Context) (*http.Request, error)) (*http.Request, error)) Option {
+func WithMiddleware(mw ...func(ctx context.Context, cr *ClientRequest,
+	n func(ctx context.Context) (*http.Request, error)) (*http.Request, error)) Option {
 	return func(request *ClientRequest) {
 		if request.mw != nil {
 			mw = append(mw, request.mw)
@@ -96,7 +98,8 @@ func (r ClientRequest) Query(value ...RValue) ClientRequest {
 
 // Header add values for the header
 func (r ClientRequest) Header(value ...RValue) ClientRequest {
-	return r.handle(func(ctx context.Context, _ *ClientRequest, n func(ctx context.Context) (*http.Request, error)) (*http.Request, error) {
+	return r.handle(func(ctx context.Context, _ *ClientRequest,
+		n func(ctx context.Context) (*http.Request, error)) (*http.Request, error) {
 		r, err := n(ctx)
 		if err == nil {
 			for _, v := range value {
@@ -109,7 +112,8 @@ func (r ClientRequest) Header(value ...RValue) ClientRequest {
 
 // SetBasicAuth set username and password basic auth
 func (r ClientRequest) SetBasicAuth(username, password string) ClientRequest {
-	return r.handle(func(ctx context.Context, _ *ClientRequest, n func(context.Context) (*http.Request, error)) (request *http.Request, e error) {
+	return r.handle(func(ctx context.Context, _ *ClientRequest,
+		n func(context.Context) (*http.Request, error)) (request *http.Request, e error) {
 		request, e = n(ctx)
 		if e == nil {
 			request.SetBasicAuth(username, password)
@@ -191,7 +195,9 @@ func (r ClientRequest) path() string {
 	return u
 }
 
-func (r ClientRequest) handle(h func(context.Context, *ClientRequest, func(context.Context) (*http.Request, error)) (*http.Request, error)) ClientRequest {
+func (r ClientRequest) handle(
+	h func(context.Context, *ClientRequest, func(context.Context) (*http.Request, error),
+) (*http.Request, error)) ClientRequest {
 	if r.mw == nil {
 		r.mw = h
 	} else {
@@ -203,11 +209,13 @@ func (r ClientRequest) handle(h func(context.Context, *ClientRequest, func(conte
 // chain middleware
 func chain(handleFunc ...func(ctx context.Context, cr *ClientRequest,
 	n func(ctx context.Context) (*http.Request, error)) (*http.Request, error),
-) func(ctx context.Context, cr *ClientRequest, n func(ctx context.Context) (*http.Request, error)) (*http.Request, error) {
+) func(ctx context.Context, cr *ClientRequest,
+	n func(ctx context.Context) (*http.Request, error)) (*http.Request, error) {
 	n := len(handleFunc)
 	if n > 1 {
 		lastI := n - 1
-		return func(ctx context.Context, cr *ClientRequest, n func(context.Context) (*http.Request, error)) (*http.Request, error) {
+		return func(ctx context.Context, cr *ClientRequest,
+			n func(context.Context) (*http.Request, error)) (*http.Request, error) {
 			var (
 				chainHandler func(context.Context) (*http.Request, error)
 				curI         int
@@ -230,7 +238,8 @@ func chain(handleFunc ...func(ctx context.Context, cr *ClientRequest,
 		return handleFunc[0]
 	}
 
-	return func(ctx context.Context, cr *ClientRequest, n func(context.Context) (*http.Request, error)) (*http.Request, error) {
+	return func(ctx context.Context, cr *ClientRequest,
+		n func(context.Context) (*http.Request, error)) (*http.Request, error) {
 		return n(ctx)
 	}
 }

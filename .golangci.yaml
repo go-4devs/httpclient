@@ -14,3 +14,5 @@ output:
 
 linters:
   enable-all: true
+  disable:
+    - gochecknoglobals

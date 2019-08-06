@@ -10,7 +10,6 @@ import (
 )
 
 // defaultEncoder marshal data and create new bytes buffer
-// nolint: gochecknoglobals
 var defaultEncoder request.Encoder = func(v interface{}) (io.Reader, error) {
 	buff, err := json.Marshal(v)
 	if err != nil {
