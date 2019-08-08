@@ -19,7 +19,7 @@ func RegisterDecoder(aliases ...string) {
 }
 
 // NewClient create client with json decoder
-func NewClient(baseURL string, opts ...dc.Option) (dc.Client, error) {
+func NewClient(baseURL string, opts ...dc.Option) (*dc.Client, error) {
 	opts = append(opts, dc.WithDecoder(defaultDecoder))
 	return dc.New(baseURL, opts...)
 }

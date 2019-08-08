@@ -1,3 +1,4 @@
+// client with decoder
 package dc
 
 import (
@@ -12,30 +13,23 @@ import (
 	"github.com/go-4devs/httpclient/transport"
 )
 
-var _ httpclient.Fetch = &Client{}
+var _ httpclient.Fetcher = &Client{}
 
-// HTTPClient get response and marshaling it by decoder
+// Client get response and marshaling it by decoder
 type Client struct {
-	HTTPClient http.Client
+	HTTPClient *http.Client
 	decoder    decoder.Decoder
 	baseURL    url.URL
-	fetch      *fetch
-	with       []func(*http.Response, io.Reader) error
-}
-
-type options struct {
-	transport  http.RoundTripper
+	with       func(*http.Response, io.Reader) error
 	middleware transport.Middleware
-	decoder    decoder.Decoder
-	with       []func(*http.Response, io.Reader) error
 }
 
-// Option for the configure HTTPClient
-type Option func(*options)
+// Option for the configure Client
+type Option func(*Client)
 
-// WithTransportMiddleware add middleware for transport
-func WithTransportMiddleware(mw ...transport.Middleware) Option {
-	return func(i *options) {
+// WithMiddleware add middleware do request
+func WithMiddleware(mw ...transport.Middleware) Option {
+	return func(i *Client) {
 		if i.middleware != nil {
 			mw = append([]transport.Middleware{i.middleware}, mw...)
 		}
@@ -45,41 +39,63 @@ func WithTransportMiddleware(mw ...transport.Middleware) Option {
 	}
 }
 
+// WithTransport set transport
+func WithTransport(tr http.RoundTripper) Option {
+	return func(i *Client) {
+		if i.HTTPClient == http.DefaultClient {
+			i.HTTPClient = &http.Client{}
+		}
+		i.HTTPClient.Transport = tr
+	}
+}
+
 // WithFetchMiddleware add middleware for transport
+// nolint: bodyclose
 func WithFetchMiddleware(mw ...func(*http.Response, io.Reader) error) Option {
-	return func(i *options) {
-		i.with = append(i.with, mw...)
+	return func(i *Client) {
+		if i.with != nil {
+			mw = append([]func(*http.Response, io.Reader) error{i.with}, mw...)
+		}
+
+		i.with = func(response *http.Response, reader io.Reader) error {
+			for _, h := range mw {
+				if e := h(response, reader); e != nil {
+					return e
+				}
+			}
+			return nil
+		}
 	}
 }
 
 // WithErrorMiddleware add middleware for transport
-func WithErrorMiddleware(minStatusCode int, errFactory func() error) Option {
-	return func(i *options) {
-		i.with = append(i.with, func(r *http.Response, b io.Reader) (err error) {
+// nolint: bodyclose
+func WithErrorMiddleware(minStatusCode int,
+	errFactory func() error,
+	decoder func(*http.Response, io.Reader, interface{}) error) Option {
+	return func(i *Client) {
+		WithFetchMiddleware(func(r *http.Response, b io.Reader) (err error) {
 			if r.StatusCode >= minStatusCode {
 				err = errFactory()
-				if i.decoder == nil {
-					return decoder.HTTPDecode(r, b, err)
-				}
-				if derr := i.decoder(b, err); derr != nil {
+				if derr := decoder(r, b, err); derr != nil {
 					return derr
 				}
 			}
 
 			return
-		})
+		})(i)
 	}
 }
 
 // WithDecoder set decoder body
 func WithDecoder(decoder decoder.Decoder) Option {
-	return func(i *options) {
+	return func(i *Client) {
 		i.decoder = decoder
 	}
 }
 
-// Must create clint or panic
-func Must(baseURL string, opts ...Option) Client {
+// Must create client or panic
+func Must(baseURL string, opts ...Option) *Client {
 	cl, err := New(baseURL, opts...)
 	if err != nil {
 		panic(err)
@@ -88,122 +104,109 @@ func Must(baseURL string, opts ...Option) Client {
 	return cl
 }
 
-// New create new HTTPClient
-func New(baseURL string, opts ...Option) (client Client, err error) {
+// New create new Client with default http client
+func New(baseURL string, opts ...Option) (*Client, error) {
 	u, err := url.Parse(baseURL)
 	if err != nil {
-		return client, err
+		return nil, err
 	}
-	op := &options{}
+	cl := &Client{
+		baseURL:    *u,
+		HTTPClient: http.DefaultClient,
+	}
 	for _, opt := range opts {
-		opt(op)
-	}
-	tr := http.DefaultTransport
-	if op.transport == nil {
-		tr = op.transport
-	}
-	if op.middleware != nil {
-		tr = transport.NewMiddleware(tr, op.middleware)
+		opt(cl)
 	}
 
-	if len(op.with) == 0 {
-		WithErrorMiddleware(http.StatusBadRequest, apierrors.MessageFactory)(op)
-	}
-
-	cl := Client{
-		baseURL: *u,
-		decoder: op.decoder,
-		HTTPClient: http.Client{
-			Transport: tr,
-		},
-		with: op.with,
+	if cl.with == nil {
+		errDecoder := decoder.HTTPDecode
+		if cl.decoder != nil {
+			errDecoder = func(r *http.Response, body io.Reader, v interface{}) error {
+				return cl.decoder(body, v)
+			}
+		}
+		WithErrorMiddleware(http.StatusBadRequest, apierrors.MessageFactory, errDecoder)(cl)
 	}
 
 	return cl, nil
-
 }
 
 // Do request and decode response body
 func (c *Client) Do(r *http.Request, v interface{}) error {
-	f := c.Fetch(r)
-	for _, w := range c.with {
-		f.With(w)
+	return c.Fetch(r).With(c.with).Decode(v)
+}
 
+func (c *Client) Fetch(r *http.Request) httpclient.Fetch {
+	f := fetch{
+		decode: c.decode,
+	}
+	r.URL, f.err = c.baseURL.Parse(r.URL.String())
+	if f.err != nil {
+		return f
+	}
+	res, err := func(req *http.Request) (*http.Response, error) {
+		if c.middleware != nil {
+			return c.middleware(r, c.HTTPClient.Do)
+		}
+		return c.HTTPClient.Do(req)
+	}(r)
+	if err != nil {
+		f.err = err
+		return f
+	}
+	if res.Body != nil {
+		var b bytes.Buffer
+		if _, err := io.Copy(&b, res.Body); err != nil {
+			f.err = err
+		}
+		if b.Len() != 0 {
+			f.body = &b
+		}
+		_ = res.Body.Close()
 	}
 
-	return f.Decode(v)
+	return f
 }
 
 type fetch struct {
 	body     io.Reader
 	response *http.Response
 	err      error
+	decode   func(r *http.Response, body io.Reader, v interface{}) error
 }
 
-func (c *Client) Error() error {
-	if c.fetch.err != nil {
-		return c.fetch.err
-	}
-
-	return nil
+func (f fetch) Error() error {
+	return f.err
 }
 
-func (c *Client) Fetch(r *http.Request) httpclient.Fetch {
-	c.fetch = &fetch{}
-	r.URL, c.fetch.err = c.baseURL.Parse(r.URL.String())
-	if c.fetch.err != nil {
-		return c
-	}
-	res, err := c.HTTPClient.Do(r)
-	if err != nil {
-		c.fetch.err = err
-		return c
-	}
-	var b bytes.Buffer
-	if _, err := io.Copy(&b, c.fetch.response.Body); err != nil {
-		c.fetch.err = err
-	}
-	if b.Len() != 0 {
-		c.fetch.body = &b
-	}
-	_ = res.Body.Close()
-	c.fetch.response = res
-
-	return c
+func (f fetch) IsStatus(httpStatus int) bool {
+	return f.response.StatusCode == httpStatus
 }
 
-func (c *Client) IsStatus(httpStatus int) bool {
-	if c.fetch != nil {
-		return c.fetch.response.StatusCode == httpStatus
+func (f fetch) With(h func(r *http.Response, b io.Reader) error) httpclient.Fetch {
+	if f.err != nil {
+		return f
 	}
-
-	return false
+	if err := h(f.response, f.body); err != nil {
+		f.err = err
+	}
+	return f
 }
 
-func (c *Client) With(h func(r *http.Response, b io.Reader) error) httpclient.Fetch {
-	if c.fetch.err != nil {
-		return c
+func (f fetch) Decode(v interface{}) error {
+	if f.err != nil {
+		return f.err
 	}
-	if err := h(c.fetch.response, c.fetch.body); err != nil {
-		c.fetch.err = err
-	}
-	return c
+	return f.decode(f.response, f.body, v)
 }
 
-func (c *Client) Decode(v interface{}) error {
-	if c.fetch.err != nil {
-		return c.fetch.err
-	}
-	return c.decode(v)
+func (f fetch) Body() io.Reader {
+	return f.body
 }
 
-func (c *Client) Body() io.Reader {
-	return c.fetch.body
-}
-
-func (c *Client) decode(v interface{}) error {
+func (c *Client) decode(r *http.Response, body io.Reader, v interface{}) error {
 	if c.decoder != nil {
-		return c.decoder(c.fetch.body, v)
+		return c.decoder(body, v)
 	}
-	return decoder.HTTPDecode(c.fetch.response, c.fetch.body, v)
+	return decoder.HTTPDecode(r, body, v)
 }

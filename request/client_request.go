@@ -85,7 +85,7 @@ func (r ClientRequest) URI(path string, a ...interface{}) ClientRequest {
 	return r
 }
 
-// Query add values for the query
+// Query add values for the qu
 func (r ClientRequest) Query(value ...RValue) ClientRequest {
 	if r.query == nil {
 		r.query = make(url.Values, len(value))
@@ -196,8 +196,8 @@ func (r ClientRequest) path() string {
 }
 
 func (r ClientRequest) handle(
-	h func(context.Context, *ClientRequest, func(context.Context) (*http.Request, error),
-) (*http.Request, error)) ClientRequest {
+	h func(context.Context, *ClientRequest,
+		func(context.Context) (*http.Request, error)) (*http.Request, error)) ClientRequest {
 	if r.mw == nil {
 		r.mw = h
 	} else {
