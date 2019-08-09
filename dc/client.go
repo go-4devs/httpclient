@@ -3,6 +3,7 @@ package dc
 
 import (
 	"bytes"
+	"errors"
 	"io"
 	"net/http"
 	"net/url"
@@ -14,10 +15,16 @@ import (
 )
 
 var _ httpclient.Fetcher = &Client{}
+var _ httpclient.Client = &Client{}
+
+// ErrEmptyBody base errors
+var (
+	ErrEmptyBody = errors.New("empty body")
+)
 
 // Client get response and marshaling it by decoder
 type Client struct {
-	HTTPClient *http.Client
+	httpClient *http.Client
 	decoder    decoder.Decoder
 	baseURL    url.URL
 	with       func(*http.Response, io.Reader) error
@@ -42,10 +49,17 @@ func WithMiddleware(mw ...transport.Middleware) Option {
 // WithTransport set transport
 func WithTransport(tr http.RoundTripper) Option {
 	return func(i *Client) {
-		if i.HTTPClient == http.DefaultClient {
-			i.HTTPClient = &http.Client{}
+		if i.httpClient == http.DefaultClient {
+			i.httpClient = &http.Client{}
 		}
-		i.HTTPClient.Transport = tr
+		i.httpClient.Transport = tr
+	}
+}
+
+// WithHTTPClient set http client
+func WithHTTPClient(cl *http.Client) Option {
+	return func(i *Client) {
+		i.httpClient = cl
 	}
 }
 
@@ -112,7 +126,7 @@ func New(baseURL string, opts ...Option) (*Client, error) {
 	}
 	cl := &Client{
 		baseURL:    *u,
-		HTTPClient: http.DefaultClient,
+		httpClient: http.DefaultClient,
 	}
 	for _, opt := range opts {
 		opt(cl)
@@ -133,12 +147,19 @@ func New(baseURL string, opts ...Option) (*Client, error) {
 
 // Do request and decode response body
 func (c *Client) Do(r *http.Request, v interface{}) error {
-	return c.Fetch(r).With(c.with).Decode(v)
+	f := c.Fetch(r)
+	if c.with != nil {
+		f = f.With(c.with)
+	}
+	return f.Decode(v)
 }
 
 func (c *Client) Fetch(r *http.Request) httpclient.Fetch {
 	f := fetch{
 		decode: c.decode,
+	}
+	if c.httpClient == nil {
+		c.httpClient = http.DefaultClient
 	}
 	r.URL, f.err = c.baseURL.Parse(r.URL.String())
 	if f.err != nil {
@@ -146,14 +167,15 @@ func (c *Client) Fetch(r *http.Request) httpclient.Fetch {
 	}
 	res, err := func(req *http.Request) (*http.Response, error) {
 		if c.middleware != nil {
-			return c.middleware(r, c.HTTPClient.Do)
+			return c.middleware(r, c.httpClient.Do)
 		}
-		return c.HTTPClient.Do(req)
+		return c.httpClient.Do(req)
 	}(r)
 	if err != nil {
 		f.err = err
 		return f
 	}
+	f.response = res
 	if res.Body != nil {
 		var b bytes.Buffer
 		if _, err := io.Copy(&b, res.Body); err != nil {
@@ -205,6 +227,9 @@ func (f fetch) Body() io.Reader {
 }
 
 func (c *Client) decode(r *http.Response, body io.Reader, v interface{}) error {
+	if body == nil {
+		return ErrEmptyBody
+	}
 	if c.decoder != nil {
 		return c.decoder(body, v)
 	}

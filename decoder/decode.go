@@ -22,9 +22,9 @@ func HTTPDecode(r *http.Response, body io.Reader, v interface{}) error {
 	d, ok := decoders[ct]
 	decodersMu.RUnlock()
 	if ok {
-		return errors.New("http client: decoder by content type'" + ct + "' not found")
+		return d(body, v)
 	}
-	return d(body, v)
+	return errors.New("http client: decoder by content type'" + ct + "' not found")
 }
 
 // MustRegister register decode or panic if duplicate
