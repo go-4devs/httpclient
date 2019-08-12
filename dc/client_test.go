@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 
 	"github.com/go-4devs/httpclient/decoder"
@@ -50,9 +51,69 @@ func ExampleMust() {
 	log.Print(res)
 }
 
+var testDecoder = func(r io.Reader, v interface{}) error {
+	return nil
+}
+
+var testMiddleware = func(r *http.Request, next func(r *http.Request) (*http.Response, error)) (*http.Response, error) {
+	return next(r)
+}
+
+type testTransport struct{}
+
+func (t testTransport) RoundTrip(*http.Request) (*http.Response, error) {
+	panic("implement me")
+}
+
 func isHandle(r *http.Request, uri, method string) bool {
 	return r.URL.String() == uri && r.Method == method
 }
+
+func TestNew(t *testing.T) {
+	c, err := New("https://go-search.org\n")
+	require.EqualError(t, err, "parse https://go-search.org\n: net/url: invalid control character in URL")
+	require.Nil(t, c)
+
+	c, err = New("https://go-search.org")
+	require.Nil(t, err)
+	require.Equal(t, http.DefaultClient, c.httpClient)
+	u, _ := url.Parse("https://go-search.org")
+	require.Equal(t, *u, c.baseURL)
+	require.NotNil(t, c.with)
+
+	c, err = New("https://go-search.org", WithDecoder(testDecoder))
+	require.Nil(t, err)
+	require.NotNil(t, c.decoder)
+
+	hc := &http.Client{}
+	c, err = New("https://go-search.org", WithHTTPClient(hc))
+	require.Nil(t, err)
+	require.Equal(t, hc, c.httpClient)
+	require.Nil(t, c.decoder)
+
+	ht := testTransport{}
+	c, err = New("https://go-search.org",
+		WithTransport(ht),
+		WithDecoder(testDecoder),
+		WithMiddleware(testMiddleware),
+		WithMiddleware(testMiddleware),
+	)
+	require.Nil(t, err)
+	require.NotEqual(t, http.DefaultClient, c.httpClient)
+	require.Equal(t, ht, c.httpClient.Transport)
+	require.NotNil(t, c.decoder)
+	require.NotNil(t, c.middleware)
+}
+
+func TestMust(t *testing.T) {
+	require.NotNil(t, Must("https://go-search.org"))
+
+	defer func() {
+		require.NotNil(t, recover())
+	}()
+	_ = Must("ya.ru\t\n")
+}
+
 func TestClient_Do(t *testing.T) {
 
 	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
