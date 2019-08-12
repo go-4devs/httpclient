@@ -12,7 +12,7 @@ var (
 	decoders   = make(map[string]Decoder)
 )
 
-// decoder decode or error
+// Decoder decode by reader
 type Decoder func(r io.Reader, v interface{}) error
 
 // HTTPDecode decode by Content-Type

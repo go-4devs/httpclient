@@ -154,34 +154,40 @@ func TestClient_Do(t *testing.T) {
 	decoder.MustRegister(func(r io.Reader, v interface{}) error {
 		return json.NewDecoder(r).Decode(v)
 	}, "application/json")
-	var jsonOk struct {
+	type okResp struct {
 		Ok bool
 	}
+
 	t.Run("json ok", func(t *testing.T) {
+		var jsonOk okResp
 		r, err := http.NewRequest(http.MethodGet, s.URL+"/api/ok.json", nil)
 		require.Nil(t, err)
 		require.Nil(t, c.Do(r, &jsonOk))
 		require.True(t, jsonOk.Ok)
 	})
 	t.Run("decoder not found", func(t *testing.T) {
+		var jsonOk okResp
 		r, err := http.NewRequest(http.MethodGet, s.URL+"/index.html", nil)
 		require.Nil(t, err)
 		require.EqualError(t, c.Do(r, &jsonOk), "http client: decoder by content type'text/html; charset=utf-8' not found")
 	})
 	t.Run("empty body", func(t *testing.T) {
+		var jsonOk okResp
 		r, err := http.NewRequest(http.MethodGet, s.URL+"/api/empty.json", nil)
 		require.Nil(t, err)
 		require.Equal(t, ErrEmptyBody, c.Do(r, &jsonOk))
 		require.Equal(t, ErrEmptyBody, cl.Do(r, &jsonOk))
 	})
 	t.Run("not found", func(t *testing.T) {
+		var jsonOk okResp
 		r, err := http.NewRequest(http.MethodGet, s.URL+"/api/not-found.json", nil)
 		require.Nil(t, err)
 		require.Nil(t, c.Do(r, &jsonOk))
-		require.Equal(t, struct{ Ok bool }{Ok: false}, jsonOk)
+		require.Equal(t, okResp{Ok: false}, jsonOk)
 		require.EqualError(t, cl.Do(r, &jsonOk), "not found")
 	})
 	t.Run("invalid json", func(t *testing.T) {
+		var jsonOk okResp
 		r, err := http.NewRequest(http.MethodGet, s.URL+"/api/invalid.json", nil)
 		require.Nil(t, err)
 		require.EqualError(t, c.Do(r, &jsonOk), "invalid character 'i' looking for beginning of value")

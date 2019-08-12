@@ -9,6 +9,7 @@ func (m *Message) Error() string {
 	return m.Message
 }
 
-func MessageFactory() error {
+// ErrorMessage create error
+func ErrorMessage() error {
 	return &Message{}
 }

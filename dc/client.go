@@ -1,4 +1,4 @@
-// client with decoder
+// Package dc client with decoder
 package dc
 
 import (
@@ -139,7 +139,7 @@ func New(baseURL string, opts ...Option) (*Client, error) {
 				return cl.decoder(body, v)
 			}
 		}
-		WithErrorMiddleware(http.StatusBadRequest, apierrors.MessageFactory, errDecoder)(cl)
+		WithErrorMiddleware(http.StatusBadRequest, apierrors.ErrorMessage, errDecoder)(cl)
 	}
 
 	return cl, nil
@@ -154,6 +154,7 @@ func (c *Client) Do(r *http.Request, v interface{}) error {
 	return f.Decode(v)
 }
 
+// Fetch do request
 func (c *Client) Fetch(r *http.Request) httpclient.Fetch {
 	f := fetch{
 		decode: c.decode,
@@ -197,14 +198,17 @@ type fetch struct {
 	decode   func(r *http.Response, body io.Reader, v interface{}) error
 }
 
+// Error get error by do
 func (f fetch) Error() error {
 	return f.err
 }
 
+// IsStatus check http status
 func (f fetch) IsStatus(httpStatus int) bool {
 	return f.response.StatusCode == httpStatus
 }
 
+// With handle response if err nil
 func (f fetch) With(h func(r *http.Response, b io.Reader) error) httpclient.Fetch {
 	if f.err != nil {
 		return f
@@ -215,6 +219,8 @@ func (f fetch) With(h func(r *http.Response, b io.Reader) error) httpclient.Fetc
 	return f
 }
 
+// Decode decode body response
+// if empty return ErrEmptyBody
 func (f fetch) Decode(v interface{}) error {
 	if f.err != nil {
 		return f.err
@@ -222,6 +228,7 @@ func (f fetch) Decode(v interface{}) error {
 	return f.decode(f.response, f.body, v)
 }
 
+// Body get body
 func (f fetch) Body() io.Reader {
 	return f.body
 }
