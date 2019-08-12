@@ -5,10 +5,10 @@ type Message struct {
 	Message string `json:"message"`
 }
 
-func (m Message) Error() string {
+func (m *Message) Error() string {
 	return m.Message
 }
 
 func MessageFactory() error {
-	return Message{}
+	return &Message{}
 }

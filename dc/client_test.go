@@ -114,9 +114,8 @@ func TestMust(t *testing.T) {
 	_ = Must("ya.ru\t\n")
 }
 
-func TestClient_Do(t *testing.T) {
-
-	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+func testServer(t *testing.T) *httptest.Server {
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var err error
 		switch {
 		case isHandle(r, "/api/ok.json", http.MethodGet):
@@ -124,18 +123,34 @@ func TestClient_Do(t *testing.T) {
 			w.WriteHeader(http.StatusOK)
 			_, err = w.Write([]byte(`{"ok":true}`))
 			require.Nil(t, err)
-		case isHandle(r, "/err/decoder/not/found.html", http.MethodGet):
+		case isHandle(r, "/index.html", http.MethodGet):
 			w.WriteHeader(http.StatusOK)
 			_, err = w.Write([]byte(`<title>decoder not found</title>`))
-		case isHandle(r, "/api/empty/body.json", http.MethodGet):
+		case isHandle(r, "/api/empty.json", http.MethodGet):
 			w.WriteHeader(http.StatusOK)
+		case isHandle(r, "/api/not-found.json", http.MethodGet):
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusNotFound)
+			_, err = w.Write([]byte(`{"message":"not found"}`))
+		case isHandle(r, "/api/invalid.json", http.MethodGet):
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusInternalServerError)
+			_, err = w.Write([]byte(`{"err":invalid}`))
 		default:
 			w.WriteHeader(http.StatusNotImplemented)
 		}
 		require.Nil(t, err)
 	}))
+}
+
+func TestClient_Do(t *testing.T) {
+
+	s := testServer(t)
 	defer s.Close()
+
 	c := Client{}
+	cl := Must(s.URL)
+
 	decoder.MustRegister(func(r io.Reader, v interface{}) error {
 		return json.NewDecoder(r).Decode(v)
 	}, "application/json")
@@ -149,13 +164,26 @@ func TestClient_Do(t *testing.T) {
 		require.True(t, jsonOk.Ok)
 	})
 	t.Run("decoder not found", func(t *testing.T) {
-		r, err := http.NewRequest(http.MethodGet, s.URL+"/err/decoder/not/found.html", nil)
+		r, err := http.NewRequest(http.MethodGet, s.URL+"/index.html", nil)
 		require.Nil(t, err)
 		require.EqualError(t, c.Do(r, &jsonOk), "http client: decoder by content type'text/html; charset=utf-8' not found")
 	})
 	t.Run("empty body", func(t *testing.T) {
-		r, err := http.NewRequest(http.MethodGet, s.URL+"/api/empty/body.json", nil)
+		r, err := http.NewRequest(http.MethodGet, s.URL+"/api/empty.json", nil)
 		require.Nil(t, err)
 		require.Equal(t, ErrEmptyBody, c.Do(r, &jsonOk))
+		require.Equal(t, ErrEmptyBody, cl.Do(r, &jsonOk))
+	})
+	t.Run("not found", func(t *testing.T) {
+		r, err := http.NewRequest(http.MethodGet, s.URL+"/api/not-found.json", nil)
+		require.Nil(t, err)
+		require.Nil(t, c.Do(r, &jsonOk))
+		require.Equal(t, struct{ Ok bool }{Ok: false}, jsonOk)
+		require.EqualError(t, cl.Do(r, &jsonOk), "not found")
+	})
+	t.Run("invalid json", func(t *testing.T) {
+		r, err := http.NewRequest(http.MethodGet, s.URL+"/api/invalid.json", nil)
+		require.Nil(t, err)
+		require.EqualError(t, c.Do(r, &jsonOk), "invalid character 'i' looking for beginning of value")
 	})
 }
