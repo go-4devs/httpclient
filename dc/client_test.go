@@ -3,6 +3,7 @@ package dc
 import (
 	"encoding/json"
 	"io"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"net/http/httptest"
@@ -114,14 +115,24 @@ func TestMust(t *testing.T) {
 	_ = Must("ya.ru\t\n")
 }
 
+const (
+	uriOK        = "/api/ok.json"
+	uriIndexHTML = "/index.html"
+)
+
 func testServer(t *testing.T) *httptest.Server {
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var err error
 		switch {
-		case isHandle(r, "/api/ok.json", http.MethodGet):
+		case isHandle(r, uriOK, http.MethodGet):
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
 			_, err = w.Write([]byte(`{"ok":true}`))
+			require.Nil(t, err)
+		case isHandle(r, uriOK, http.MethodPost):
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			_, err = w.Write([]byte(`{"success":true}`))
 			require.Nil(t, err)
 		case isHandle(r, "/index.html", http.MethodGet):
 			w.WriteHeader(http.StatusOK)
@@ -143,6 +154,57 @@ func testServer(t *testing.T) *httptest.Server {
 	}))
 }
 
+func TestFetch_Body(t *testing.T) {
+	s := testServer(t)
+	defer s.Close()
+	c := &Client{}
+	cl := Must(s.URL)
+	t.Run("get json body", func(t *testing.T) {
+		r, err := http.NewRequest(http.MethodGet, s.URL+uriOK, nil)
+		require.Nil(t, err)
+		b := c.Fetch(r).Body()
+		bb, err := ioutil.ReadAll(b)
+		require.Nil(t, err)
+		require.Equal(t, []byte(`{"ok":true}`), bb)
+
+		f := cl.Fetch(getRequest(t, uriIndexHTML))
+		b = f.Body()
+		require.NotNil(t, b)
+		bb, err = ioutil.ReadAll(f.Body())
+		require.Nil(t, err)
+		require.Equal(t, []byte(`<title>decoder not found</title>`), bb)
+	})
+	t.Run("empty body", func(t *testing.T) {
+		r, err := http.NewRequest(http.MethodGet, s.URL+"/api/empty.json", nil)
+		require.Nil(t, err)
+		b := c.Fetch(r).Body()
+		require.Nil(t, err)
+		require.Nil(t, b)
+		f := cl.Fetch(r)
+		b = f.Body()
+		require.Nil(t, b)
+	})
+}
+
+func TestFetch_IsStatus(t *testing.T) {
+	s := testServer(t)
+	defer s.Close()
+	cl := Must(s.URL)
+	t.Run("status ok", func(t *testing.T) {
+		require.True(t, cl.Fetch(getRequest(t, uriOK)).IsStatus(http.StatusOK))
+	})
+	t.Run("status not implemented", func(t *testing.T) {
+		require.True(t, cl.Fetch(getRequest(t, "")).IsStatus(http.StatusNotImplemented))
+	})
+}
+
+func getRequest(t *testing.T, url string) *http.Request {
+	r, err := http.NewRequest(http.MethodGet, url, nil)
+	require.Nil(t, err)
+	return r
+
+}
+
 func TestClient_Do(t *testing.T) {
 
 	s := testServer(t)
@@ -160,16 +222,13 @@ func TestClient_Do(t *testing.T) {
 
 	t.Run("json ok", func(t *testing.T) {
 		var jsonOk okResp
-		r, err := http.NewRequest(http.MethodGet, s.URL+"/api/ok.json", nil)
-		require.Nil(t, err)
-		require.Nil(t, c.Do(r, &jsonOk))
+		require.Nil(t, c.Do(getRequest(t, s.URL+uriOK), &jsonOk))
 		require.True(t, jsonOk.Ok)
 	})
 	t.Run("decoder not found", func(t *testing.T) {
 		var jsonOk okResp
-		r, err := http.NewRequest(http.MethodGet, s.URL+"/index.html", nil)
-		require.Nil(t, err)
-		require.EqualError(t, c.Do(r, &jsonOk), "http client: decoder by content type'text/html; charset=utf-8' not found")
+		require.EqualError(t, c.Do(getRequest(t, s.URL+uriIndexHTML), &jsonOk),
+			"http client: decoder by content type'text/html; charset=utf-8' not found")
 	})
 	t.Run("empty body", func(t *testing.T) {
 		var jsonOk okResp

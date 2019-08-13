@@ -205,7 +205,7 @@ func (f fetch) Error() error {
 
 // IsStatus check http status
 func (f fetch) IsStatus(httpStatus int) bool {
-	return f.response.StatusCode == httpStatus
+	return f.response != nil && f.response.StatusCode == httpStatus
 }
 
 // With handle response if err nil
