@@ -228,7 +228,7 @@ func TestClient_Do(t *testing.T) {
 	t.Run("decoder not found", func(t *testing.T) {
 		var jsonOk okResp
 		require.EqualError(t, c.Do(getRequest(t, s.URL+uriIndexHTML), &jsonOk),
-			"http client: decoder by content type'text/html; charset=utf-8' not found")
+			"http client: decoder by media type'text/html' not found")
 	})
 	t.Run("empty body", func(t *testing.T) {
 		var jsonOk okResp
