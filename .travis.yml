@@ -5,6 +5,7 @@ sudo: false
 go:
   - 1.x
   - 1.12.x
+  - master
   - tip
 
 # https://github.com/mattn/goveralls#github-integration
