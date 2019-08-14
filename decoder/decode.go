@@ -33,7 +33,7 @@ func Decode(mediaType string, body io.Reader, v interface{}) error {
 	if ok {
 		return d(body, v)
 	}
-	return errors.New("http client: decoder by media type'" + mediaType + "' not found")
+	return errors.New("http client: decoder by media type '" + mediaType + "' not found")
 }
 
 // Register decoder by media type
@@ -45,7 +45,7 @@ func Register(decoder Decoder, mediaTypes ...string) error {
 	defer decodersMu.Unlock()
 	for _, mt := range mediaTypes {
 		if _, dup := decoders[mt]; dup {
-			return errors.New("http client:  Register called twice for decoder by media type" + mt)
+			return errors.New("http client: register called twice for decoder by media type " + mt)
 		}
 		decoders[mt] = decoder
 	}
