@@ -5,10 +5,9 @@ go 1.12
 replace (
 	github.com/go-4devs/httpclient/dc => ../dc
 	github.com/go-4devs/httpclient/decoder => ../decoder
-	github.com/go-4devs/httpclient/transport => ../transport
 )
 
 require (
-	github.com/go-4devs/httpclient/dc v0.0.0-00010101000000-000000000000
-	github.com/go-4devs/httpclient/decoder v0.0.0-20190806073327-3cd2c74fdee1
+	github.com/go-4devs/httpclient/dc v0.0.0-20190814063109-82955e154764
+	github.com/go-4devs/httpclient/decoder v0.0.0-20190814063109-82955e154764
 )
