@@ -10,7 +10,7 @@ replace (
 )
 
 require (
-	github.com/go-4devs/httpclient v0.0.1
+	github.com/go-4devs/httpclient v0.0.2
 	github.com/go-4devs/httpclient/apierrors v0.0.0-20190814063109-82955e154764
 	github.com/go-4devs/httpclient/decoder v0.0.0-20190814063109-82955e154764
 	github.com/go-4devs/httpclient/transport v0.0.0-20190814063109-82955e154764
