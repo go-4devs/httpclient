@@ -8,6 +8,6 @@ replace (
 )
 
 require (
-	github.com/go-4devs/httpclient/dc v0.0.0-20190814063109-82955e154764
-	github.com/go-4devs/httpclient/decoder v0.0.0-20190814063109-82955e154764
+	github.com/go-4devs/httpclient/dc v0.0.1
+	github.com/go-4devs/httpclient/decoder v0.0.0-20190822111646-5ff1b8dab5b4
 )
