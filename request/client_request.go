@@ -13,6 +13,10 @@ import (
 // Encoder for the body
 type Encoder func(v interface{}) (io.Reader, error)
 
+// Middleware handle middleware
+type Middleware func(ctx context.Context, cr *ClientRequest,
+	n func(context.Context) (*http.Request, error)) (*http.Request, error)
+
 // ClientRequest make request by params method query
 type ClientRequest struct {
 	Encoder  Encoder
@@ -23,8 +27,7 @@ type ClientRequest struct {
 	err      error
 	body     io.Reader
 	ctx      context.Context
-	mw       func(ctx context.Context, cr *ClientRequest,
-		n func(ctx context.Context) (*http.Request, error)) (*http.Request, error)
+	mw       Middleware
 }
 
 // Option configure client request
@@ -38,14 +41,18 @@ func WithEncoder(encoder Encoder) Option {
 }
 
 // WithMiddleware set middleware request
-func WithMiddleware(mw ...func(ctx context.Context, cr *ClientRequest,
-	n func(ctx context.Context) (*http.Request, error)) (*http.Request, error)) Option {
+func WithMiddleware(mw ...Middleware) Option {
 	return func(request *ClientRequest) {
 		if request.mw != nil {
 			mw = append(mw, request.mw)
 		}
 		request.mw = chain(mw...)
 	}
+}
+
+// WithHeader set header
+func WithHeader(values ...RValue) Option {
+	return WithMiddleware(header(values...))
 }
 
 // WithMethod set method by default GET
@@ -96,9 +103,8 @@ func (r ClientRequest) Query(value ...RValue) ClientRequest {
 	return r
 }
 
-// Header add values for the header
-func (r ClientRequest) Header(value ...RValue) ClientRequest {
-	return r.handle(func(ctx context.Context, _ *ClientRequest,
+func header(value ...RValue) Middleware {
+	return func(ctx context.Context, _ *ClientRequest,
 		n func(ctx context.Context) (*http.Request, error)) (*http.Request, error) {
 		r, err := n(ctx)
 		if err == nil {
@@ -107,7 +113,12 @@ func (r ClientRequest) Header(value ...RValue) ClientRequest {
 			}
 		}
 		return r, err
-	})
+	}
+}
+
+// Header add values for the header
+func (r ClientRequest) Header(value ...RValue) ClientRequest {
+	return r.handle(header(value...))
 }
 
 // SetBasicAuth set username and password basic auth
@@ -195,9 +206,7 @@ func (r ClientRequest) path() string {
 	return u
 }
 
-func (r ClientRequest) handle(
-	h func(context.Context, *ClientRequest,
-		func(context.Context) (*http.Request, error)) (*http.Request, error)) ClientRequest {
+func (r ClientRequest) handle(h Middleware) ClientRequest {
 	if r.mw == nil {
 		r.mw = h
 	} else {
@@ -207,10 +216,7 @@ func (r ClientRequest) handle(
 }
 
 // chain middleware
-func chain(handleFunc ...func(ctx context.Context, cr *ClientRequest,
-	n func(ctx context.Context) (*http.Request, error)) (*http.Request, error),
-) func(ctx context.Context, cr *ClientRequest,
-	n func(ctx context.Context) (*http.Request, error)) (*http.Request, error) {
+func chain(handleFunc ...Middleware) Middleware {
 	n := len(handleFunc)
 	if n > 1 {
 		lastI := n - 1
