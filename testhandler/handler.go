@@ -3,6 +3,7 @@ package testhandler
 import (
 	"bytes"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"testing"
 )
@@ -99,6 +100,16 @@ func NewHandle(req Request, data string, opts ...Option) Handle {
 // NewHTTPHandler http handler
 func NewHTTPHandler(t *testing.T, h ...Handle) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.GetBody == nil {
+			snapshot, err := ioutil.ReadAll(r.Body)
+			if err != nil {
+				t.Error(err)
+			}
+			r.GetBody = func() (io.ReadCloser, error) {
+				r := bytes.NewBuffer(snapshot)
+				return ioutil.NopCloser(r), nil
+			}
+		}
 		for i := range h {
 			if h[i].CanHandle(r) {
 				h[i].Write(w).Cases(t, r)
