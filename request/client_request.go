@@ -185,7 +185,7 @@ func (r ClientRequest) HTTP() (httpRequest *http.Request, err error) {
 }
 
 func (r ClientRequest) init(ctx context.Context) (request *http.Request, e error) {
-	request, e = http.NewRequest(r.Method, r.path(), r.body)
+	request, e = http.NewRequest(r.Method, r.path(), r.Body)
 	if e == nil {
 		request = request.WithContext(ctx)
 	}
