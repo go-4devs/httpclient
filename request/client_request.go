@@ -23,9 +23,9 @@ type ClientRequest struct {
 	Method   string
 	Path     string
 	PathArgs []interface{}
+	Body     io.Reader
 	query    url.Values
 	err      error
-	body     io.Reader
 	ctx      context.Context
 	mw       Middleware
 }
@@ -139,10 +139,10 @@ func (r ClientRequest) SetBody(data interface{}) ClientRequest {
 		return r
 	}
 	if r.Encoder == nil {
-		r.body, r.err = encoder(data)
+		r.Body, r.err = encoder(data)
 		return r
 	}
-	r.body, r.err = r.Encoder(data)
+	r.Body, r.err = r.Encoder(data)
 
 	return r
 }

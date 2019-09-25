@@ -182,9 +182,7 @@ func (c *Client) Fetch(r *http.Request) httpclient.Fetch {
 		if _, err := io.Copy(&b, res.Body); err != nil {
 			f.err = err
 		}
-		if b.Len() != 0 {
-			f.body = &b
-		}
+		f.body = &b
 		_ = res.Body.Close()
 	}
 
