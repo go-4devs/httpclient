@@ -1,6 +1,7 @@
 package dc
 
 import (
+	"bytes"
 	"encoding/json"
 	"io"
 	"io/ioutil"
@@ -138,6 +139,9 @@ func testServer(t *testing.T) *httptest.Server {
 			w.WriteHeader(http.StatusOK)
 			_, err = w.Write([]byte(`<title>decoder not found</title>`))
 		case isHandle(r, "/api/empty.json", http.MethodGet):
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+		case isHandle(r, "/api/no-media-type.json", http.MethodGet):
 			w.WriteHeader(http.StatusOK)
 		case isHandle(r, "/api/not-found.json", http.MethodGet):
 			w.Header().Set("Content-Type", "application/json")
@@ -179,10 +183,10 @@ func TestFetch_Body(t *testing.T) {
 		require.Nil(t, err)
 		b := c.Fetch(r).Body()
 		require.Nil(t, err)
-		require.Nil(t, b)
+		require.Equal(t, &bytes.Buffer{}, b)
 		f := cl.Fetch(r)
 		b = f.Body()
-		require.Nil(t, b)
+		require.Equal(t, &bytes.Buffer{}, b)
 	})
 }
 
@@ -230,12 +234,12 @@ func TestClient_Do(t *testing.T) {
 		require.EqualError(t, c.Do(getRequest(t, s.URL+uriIndexHTML), &jsonOk),
 			"http client: decoder by media type 'text/html' not found")
 	})
-	t.Run("empty body", func(t *testing.T) {
+	t.Run("no media type", func(t *testing.T) {
 		var jsonOk okResp
-		r, err := http.NewRequest(http.MethodGet, s.URL+"/api/empty.json", nil)
+		r, err := http.NewRequest(http.MethodGet, s.URL+"/api/no-media-type.json", nil)
 		require.Nil(t, err)
-		require.Equal(t, ErrEmptyBody, c.Do(r, &jsonOk))
-		require.Equal(t, ErrEmptyBody, cl.Do(r, &jsonOk))
+		require.EqualError(t, c.Do(r, &jsonOk), "mime: no media type")
+		require.EqualError(t, cl.Do(r, &jsonOk), "mime: no media type")
 	})
 	t.Run("not found", func(t *testing.T) {
 		var jsonOk okResp
@@ -243,7 +247,7 @@ func TestClient_Do(t *testing.T) {
 		require.Nil(t, err)
 		require.Nil(t, c.Do(r, &jsonOk))
 		require.Equal(t, okResp{Ok: false}, jsonOk)
-		require.EqualError(t, cl.Do(r, &jsonOk), "not found")
+		require.EqualError(t, cl.Do(r, &jsonOk), "StatusCode:404, Message: not found")
 	})
 	t.Run("invalid json", func(t *testing.T) {
 		var jsonOk okResp

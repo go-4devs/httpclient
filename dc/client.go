@@ -37,10 +37,12 @@ type Option func(*Client)
 // WithMiddleware add middleware do request
 func WithMiddleware(mw ...transport.Middleware) Option {
 	return func(i *Client) {
-		if i.middleware != nil {
-			mw = append([]transport.Middleware{i.middleware}, mw...)
+		if len(mw) == 0 {
+			return
 		}
-		if len(mw) > 0 {
+		if i.middleware != nil {
+			i.middleware = transport.Chain(append([]transport.Middleware{i.middleware}, mw...)...)
+		} else {
 			i.middleware = transport.Chain(mw...)
 		}
 	}
@@ -67,12 +69,13 @@ func WithHTTPClient(cl *http.Client) Option {
 // nolint: bodyclose
 func WithFetchMiddleware(mw ...func(*http.Response, io.Reader) error) Option {
 	return func(i *Client) {
+		handle := make([]func(*http.Response, io.Reader) error, 0, len(mw)+1)
 		if i.with != nil {
-			mw = append([]func(*http.Response, io.Reader) error{i.with}, mw...)
+			handle = append(handle, i.with)
 		}
-
+		handle = append(handle, mw...)
 		i.with = func(response *http.Response, reader io.Reader) error {
-			for _, h := range mw {
+			for _, h := range handle {
 				if e := h(response, reader); e != nil {
 					return e
 				}
@@ -84,6 +87,7 @@ func WithFetchMiddleware(mw ...func(*http.Response, io.Reader) error) Option {
 
 // WithErrorMiddleware add middleware for transport
 // nolint: bodyclose
+// deprecated: use WithHttpErrorMiddleware
 func WithErrorMiddleware(minStatusCode int,
 	errFactory func() error,
 	decoder func(*http.Response, io.Reader, interface{}) error) Option {
@@ -91,6 +95,25 @@ func WithErrorMiddleware(minStatusCode int,
 		WithFetchMiddleware(func(r *http.Response, b io.Reader) (err error) {
 			if r.StatusCode >= minStatusCode {
 				err = errFactory()
+				if derr := decoder(r, b, err); derr != nil {
+					return derr
+				}
+			}
+
+			return
+		})(i)
+	}
+}
+
+// WithHttpErrorMiddleware add middleware for transport
+// nolint: bodyclose
+func WithHTTPErrorMiddleware(minStatusCode int,
+	errFactory func(r *http.Response) error,
+	decoder func(*http.Response, io.Reader, interface{}) error) Option {
+	return func(i *Client) {
+		WithFetchMiddleware(func(r *http.Response, b io.Reader) (err error) {
+			if r.StatusCode >= minStatusCode {
+				err = errFactory(r)
 				if derr := decoder(r, b, err); derr != nil {
 					return derr
 				}
@@ -139,7 +162,7 @@ func New(baseURL string, opts ...Option) (*Client, error) {
 				return cl.decoder(body, v)
 			}
 		}
-		WithErrorMiddleware(http.StatusBadRequest, apierrors.ErrorMessage, errDecoder)(cl)
+		WithHTTPErrorMiddleware(http.StatusBadRequest, apierrors.HTTPErrorMessage, errDecoder)(cl)
 	}
 
 	return cl, nil

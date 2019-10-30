@@ -4,8 +4,10 @@ github.com/go-4devs/httpclient v0.0.2 h1:uxtNtmVNJzzxPSzmDDSr6PsI53Pfkee9vTEMHud
 github.com/go-4devs/httpclient v0.0.2/go.mod h1:L6vTY2gUMmrsXgzOL39ezjre/pczs/kZBpDvVKDIFMU=
 github.com/go-4devs/httpclient/apierrors v0.0.0-20190814063109-82955e154764 h1:D2rw5/oyNihxGY0EwGqxcEqbPFSzzkNj1HWW0aAA3+8=
 github.com/go-4devs/httpclient/apierrors v0.0.0-20190814063109-82955e154764/go.mod h1:6eCrUnGMgDI/9/ltz8ZUJPVG7JTl3zT75iHbIdumJiw=
+github.com/go-4devs/httpclient/apierrors v0.0.0-20191030085833-a0493e492141/go.mod h1:6eCrUnGMgDI/9/ltz8ZUJPVG7JTl3zT75iHbIdumJiw=
 github.com/go-4devs/httpclient/transport v0.0.0-20190814063109-82955e154764 h1:kBLGD8KIKNMHrXhnFDnbgZbCZ+Vv5YqoYED1kRh4XoA=
 github.com/go-4devs/httpclient/transport v0.0.0-20190814063109-82955e154764/go.mod h1:FROOnQmuXmvVZOzG6Xw60Aw5t6NJLs2s3JjOiSBsYNY=
+github.com/go-4devs/httpclient/transport v0.0.1/go.mod h1:FROOnQmuXmvVZOzG6Xw60Aw5t6NJLs2s3JjOiSBsYNY=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
 github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=
