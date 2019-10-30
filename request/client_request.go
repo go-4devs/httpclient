@@ -44,9 +44,10 @@ func WithEncoder(encoder Encoder) Option {
 func WithMiddleware(mw ...Middleware) Option {
 	return func(request *ClientRequest) {
 		if request.mw != nil {
-			mw = append(mw, request.mw)
+			request.mw = chain(append(mw, request.mw)...)
+		} else {
+			request.mw = chain(mw...)
 		}
-		request.mw = chain(mw...)
 	}
 }
 
