@@ -9,5 +9,5 @@ replace (
 
 require (
 	github.com/go-4devs/httpclient/dc v0.0.1
-	github.com/go-4devs/httpclient/decoder v0.0.0-20190822111646-5ff1b8dab5b4
+	github.com/go-4devs/httpclient/decoder v0.0.0-20191030085833-a0493e492141
 )
